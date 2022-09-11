@@ -7,6 +7,10 @@ verify_ssl = true
 
 [packages]
 pygame = "*"
+qrcode = "*"
+Image = "*"
+Requests = "*"
+schedule = "*"
 
 [requires]
 python_version = "3"

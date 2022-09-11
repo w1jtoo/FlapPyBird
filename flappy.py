@@ -4,6 +4,12 @@ import sys
 import pygame
 from pygame.locals import *
 
+import qrcode
+from io import BytesIO
+from PIL import Image
+from auth import build_auth_url
+import schedule
+
 FPS = 30
 SCREENWIDTH  = 288
 SCREENHEIGHT = 512
@@ -52,13 +58,48 @@ try:
 except NameError:
     xrange = range
 
+def generate_QR(url: str):
+    qr = qrcode.QRCode(
+    version = 1,
+    error_correction = qrcode.constants.ERROR_CORRECT_H,
+    box_size = 10,
+    border = 4,
+    )
+
+    qr.add_data(url)
+    qr.make(fit=True)
+
+    img = qr.make_image()
+    return img
+
+def generate_new_qr_and_drow():
+    url = build_auth_url()
+    img = generate_QR(url)
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+
+    pilimage = Image.open(buffered).convert("RGBA")
+    qr_image = pygame.image.fromstring(pilimage.tobytes(), pilimage.size, pilimage.mode)
+    SCREEN.blit(qr_image, (0, 0))
+
+
+def auth() -> None:
+    url = build_auth_url()
+    schedule.every(1).seconds.do(generate_new_qr_and_drow)
+
+    while 1:
+        schedule.run_pending()
+
+        pygame.display.update()
+        FPSCLOCK.tick(FPS)
 
 def main():
     global SCREEN, FPSCLOCK
     pygame.init()
     FPSCLOCK = pygame.time.Clock()
-    SCREEN = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
-    pygame.display.set_caption('Flappy Bird')
+    SCREEN = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
+    pygame.display.set_caption('Portal Bird')
+    auth()
 
     # numbers sprites for score display
     IMAGES['numbers'] = (
