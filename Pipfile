@@ -11,6 +11,9 @@ qrcode = "*"
 Image = "*"
 Requests = "*"
 schedule = "*"
+pyjwt = "*"
+memory_profiler = "*"
+pyinstaller = "*"
 
 [requires]
 python_version = "3"

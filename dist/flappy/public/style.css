@@ -1,0 +1,85 @@
+@font-face {
+    font-family: Lab Grotesque;
+    font-weight: 300;
+    src: local("LabGrotesque-Light"),
+         url("https://s.kontur.ru/common-v2/fonts/LabGrotesque/LabGrotesque-Light.woff2") format("woff2"),
+         url("https://s.kontur.ru/common-v2/fonts/LabGrotesque/LabGrotesque-Light.woff") format("woff");
+}
+@font-face {
+    font-family: Lab Grotesque;
+    font-weight: 400;
+    src: local("LabGrotesque-Regular"),
+         url("https://s.kontur.ru/common-v2/fonts/LabGrotesque/LabGrotesque-Regular.woff2") format("woff2"),
+         url("https://s.kontur.ru/common-v2/fonts/LabGrotesque/LabGrotesque-Regular.woff") format("woff");
+}
+@font-face {
+    font-family: Lab Grotesque;
+    font-weight: 500;
+    src: local("LabGrotesque-Medium"),
+         url("https://s.kontur.ru/common-v2/fonts/LabGrotesque/LabGrotesque-Medium.woff2") format("woff2"),
+         url("https://s.kontur.ru/common-v2/fonts/LabGrotesque/LabGrotesque-Medium.woff") format("woff");
+}
+@font-face {
+    font-family: Lab Grotesque;
+    font-weight: 700;
+    src: local("LabGrotesque-Bold"),
+         url("https://s.kontur.ru/common-v2/fonts/LabGrotesque/LabGrotesque-Bold.woff2") format("woff2"),
+         url("https://s.kontur.ru/common-v2/fonts/LabGrotesque/LabGrotesque-Bold.woff") format("woff");
+}
+  
+body {
+    font-family: 'Lab Grotesque', -apple-system, BlinkMacSystemFont, Arial, 'Liberation Sans', 'Nimbus Sans L', sans-serif;
+    font-size: 14px;
+    background: #f2f2f2;
+    color: #404040;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    min-height: 100%;
+    display: flex;
+}
+
+h1 {
+    text-align: center;
+}
+.wrapper {
+    background: #fff;
+    
+    margin: auto;
+    box-shadow: 0 0 10px rgba(0, 0, 0, .05);
+    border-radius: 10px;
+    min-width: 600px;
+}
+.list {
+    padding: 0;
+    counter-reset: section;
+}
+.item {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px
+}
+.item::before {
+    counter-increment: section;
+    content: counter(section) ".";
+    margin-right: 10px;
+    font-size: 20px;
+}
+.item:nth-child(2n+1) {
+    background-color: rgba(0, 0, 0, .05);
+}
+.ava {
+    border-radius: 50%;
+    overflow: hidden;
+    width: 50px;
+    height: 50px;
+    margin-right: 10px;
+}
+.fio {
+    font-size: 20px;
+}
+.score {
+    font-size: 35px;
+    font-weight: 500;
+    margin-left: auto;
+}

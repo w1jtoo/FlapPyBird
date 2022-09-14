@@ -1,6 +1,8 @@
 import logging
 import json
 import requests
+import jwt
+from threading import Thread
 
 
 AUTH_URL = "https://identity.testkontur.ru/connect/deviceauthorization"
@@ -12,9 +14,9 @@ DEVICE_CODE = None
 AUTH_META = None
 
 def init_logging() -> None:
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
-def build_auth_url() -> None:
+def build_auth_url() -> str:
     global DEVICE_CODE
 
     req = requests.post(
@@ -37,6 +39,12 @@ def build_auth_url() -> None:
 
 
 def check_auth() -> None:
+    if DEVICE_CODE is None:
+        return
+    thread = Thread(target = _check_auth)
+    thread.start()
+
+def _check_auth() -> None:
     global AUTH_META
 
     if DEVICE_CODE is None:
@@ -57,7 +65,10 @@ def check_auth() -> None:
     json_content = json.loads(req.text)
 
     if req.status_code == 200:
-        AUTH_META = "LOL"
+        encoded = json_content["id_token"]
+        decoded = jwt.decode(encoded, options={"verify_signature": False})
+
+        AUTH_META = decoded
         return
 
     if req.status_code == 400:
@@ -68,3 +79,10 @@ def check_auth() -> None:
 
 def is_authorized() -> None:
     return AUTH_META is not None
+
+def logout() -> None:
+    global AUTH_META
+    AUTH_META = None
+
+def get_auth_meta() -> dict:
+    return (AUTH_META["name"], AUTH_META["picture"])

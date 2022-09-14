@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <!-- <meta http-equiv="refresh" content="3"> -->
+    <script>
+        const items = (fetch("http://localhost:8000/score.json").then(function(response) {
+            return response.json();
+        }))
+    </script>
+</head>
+
+<body>
+    <h1>Список лидеров</h1>
+    <div id="container"></div>
+    <script>
+        setInterval(function() {
+
+
+            const cont = document.getElementById('container');
+            const ol = document.createElement('ol');
+            (fetch("http://localhost:8000/score.json").then(function(response) {
+                return response.json();
+            })).then(function(items) {
+                items.forEach((item, index, arr) => {
+                    console.log(item)
+                    const li = document.createElement('li');
+                    const img = document.createElement('img');
+                    img.src = item.img;
+                    img.width = 50;
+                    img.height = 50;
+                    li.appendChild(img);
+                    const span = document.createElement('span');
+
+                    span.innerHTML = `${item.name} ${item.score}`;
+                    li.appendChild(span);
+                    ol.appendChild(li);
+                });
+                Array.prototype.slice.call(document.getElementsByTagName("li")).forEach(function(child) {
+                    child.remove()
+                })
+                cont.appendChild(ol);
+            });
+        }, 2 * 1000); // 60 * 1000 milsec
+    </script>
+</body>
+
+</html>
