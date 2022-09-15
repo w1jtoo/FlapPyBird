@@ -12,14 +12,17 @@ import schedule
 
 from learedboard import save_score
 
-FPS = 30
+FPS = 60
 SCREENWIDTH  = 288 * 2
 SCREENHEIGHT = 1080
 PIPEGAPSIZE  = 230 # gap between upper and lower part of pipe
-FULLSCREEN_WIDTH = 1920
+FULLSCREEN_WIDTH = 1000
 BASEY        = SCREENHEIGHT * 0.79
 # image, sound and hitmask  dicts
 IMAGES, SOUNDS, HITMASKS = {}, {}, {}
+PIPE_VEL = 128 * 2
+
+JUMP_KEYS = []
 
 # list of all possible players (tuple of 3 positions of flap)
 PLAYERS_LIST = (
@@ -82,7 +85,7 @@ def generate_QR(url: str):
 QR = None
 
 def draw_qr() -> None:
-    SCREEN.blit(QR,(SCREENWIDTH / 2 + 2 * QR.get_width() + 60 , SCREENHEIGHT / 2 + QR.get_height() / 2))
+    SCREEN.blit(QR,(FULLSCREEN_WIDTH / 2 - QR.get_width() / 2 , SCREENHEIGHT / 2 + int(SCREENHEIGHT * 0.1)))
 
 def _generate_new_qr(url) -> None:
     global QR
@@ -93,7 +96,7 @@ def _generate_new_qr(url) -> None:
 
     pilimage = Image.open(buffered).convert("RGBA")
     qr = pygame.image.fromstring(pilimage.tobytes(), pilimage.size, pilimage.mode)
-    QR = scale(qr, scale_factor = 0.5)
+    QR = scale(qr, scale_factor = 0.75)
 
 def generate_new_qr() -> None:
     from threading import Thread
@@ -104,7 +107,7 @@ def init_game() -> None:
     global SCREEN, FPSCLOCK
     pygame.init()
     FPSCLOCK = pygame.time.Clock()
-    SCREEN = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
+    SCREEN = pygame.display.set_mode((FULLSCREEN_WIDTH, SCREENHEIGHT), pygame.RESIZABLE)
     pygame.display.set_caption('Portal Bird')
 
 def scale(image: "Surface", scale_factor = 2) -> "Surface":
@@ -216,9 +219,15 @@ def draw_background() -> None:
     end_x = get_inner_x()
     end_y = SCREENHEIGHT
 
-    pygame.draw.rect(SCREEN, [55, 152, 55], [start_x, start_y, end_x, end_y], 0)
-    pygame.draw.rect(SCREEN, [55, 152, 55], [end_x + IMAGES['background'].get_width(), 0, end_x, end_y], 0)
+    pygame.draw.rect(SCREEN, [242, 242, 242], [start_x, start_y, end_x, end_y], 0)
+    pygame.draw.rect(SCREEN, [242, 242, 242], [end_x + IMAGES['background'].get_width(), 0, end_x, end_y], 0)
 
+def is_jump_pressed(event) -> bool:
+    return event.type == KEYDOWN and (event.key == K_SPACE or event.key == K_UP or event.key == 1073741902) or event.type == MOUSEBUTTONDOWN
+
+def move_base(x: int, dt: int) -> int:
+    baseShift = IMAGES['base'].get_width() - IMAGES['background'].get_width()
+    return (x + PIPE_VEL * dt) % baseShift
 
 def showWelcomeAnimation():
     """Shows welcome screen animation of flappy bird"""
@@ -236,26 +245,26 @@ def showWelcomeAnimation():
     messagex = central_delta + int((SCREENWIDTH - IMAGES['message'].get_width()) / 2)
     messagey = int(SCREENHEIGHT * 0.12)
 
-    basex = central_delta
-    # amount by which base can maximum shift to left
-    baseShift = IMAGES['base'].get_width() - IMAGES['background'].get_width()
+    basex = 0
 
     # player shm for up-down motion on welcome screen
     playerShmVals = {'val': 0, 'dir': 1}
 
-    schedule.every(120).seconds.do(lambda: generate_new_qr())
+    schedule.every(160).seconds.do(lambda: generate_new_qr())
     schedule.every(3).seconds.do(check_auth)
     generate_new_qr()
 
-
     while True:
+        dt = FPSCLOCK.tick(FPS) / 1000
         for event in pygame.event.get():
+
             if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
                 pygame.quit()
                 sys.exit()
 
             if (is_authorized()):
-                if event.type == KEYDOWN and (event.key == K_SPACE or event.key == K_UP) or event.type == MOUSEBUTTONDOWN:
+
+                if is_jump_pressed(event):
                     # make first flap sound and return values for mainGame
                     SOUNDS['wing'].play()
                     return {
@@ -273,14 +282,15 @@ def showWelcomeAnimation():
         if (loopIter + 1) % 5 == 0:
             playerIndex = next(playerIndexGen)
         loopIter = (loopIter + 1) % 30
-        basex = central_delta + -((-basex + 4) % baseShift)
+        basex = move_base(basex, dt)
+
         playerShm(playerShmVals)
 
         # draw sprites
         SCREEN.blit(IMAGES['background'], (central_delta, 0))
         SCREEN.blit(IMAGES['player'][playerIndex],
                     (playerx, playery + playerShmVals['val']))
-        SCREEN.blit(IMAGES['base'], (basex, BASEY))
+        SCREEN.blit(IMAGES['base'], (central_delta - basex, BASEY))
 
         if (is_authorized()):
             SCREEN.blit(IMAGES['message'], (messagex, messagey))
@@ -303,7 +313,6 @@ def mainGame(movementInfo):
     playerx, playery = movementInfo['player_x'], movementInfo['playery']
 
     basex = movementInfo['basex']
-    baseShift = IMAGES['base'].get_width() - IMAGES['background'].get_width()
 
     # get 2 new pipes to add to upperPipes lowerPipes list
     newPipe1 = getRandomPipe()
@@ -321,9 +330,6 @@ def mainGame(movementInfo):
         {'x': central_delta + SCREENWIDTH + 200 + (SCREENWIDTH / 2), 'y': newPipe2[1]['y'], 'pipe_id': 2},
     ]
 
-    dt = FPSCLOCK.tick(FPS)/1000
-    pipeVelX = -128 * dt
-
     # player velocity, max velocity, downward acceleration, acceleration on flap
     playerVelY    =  -18   # player's velocity along Y, default same as playerFlapped
     playerMaxVelY =  20   # max vel along Y, max descend speed
@@ -338,11 +344,12 @@ def mainGame(movementInfo):
     collided_pipes = set()
 
     while True:
+        dt = FPSCLOCK.tick(FPS) / 1000
         for event in pygame.event.get():
             if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
                 pygame.quit()
                 sys.exit()
-            if event.type == KEYDOWN and (event.key == K_SPACE or event.key == K_UP) or event.type == MOUSEBUTTONDOWN:
+            if is_jump_pressed(event):
                 if playery > -2 * IMAGES['player'][0].get_height():
                     playerVelY = playerFlapAcc
                     playerFlapped = True
@@ -376,7 +383,7 @@ def mainGame(movementInfo):
         if (loopIter + 1) % 3 == 0:
             playerIndex = next(playerIndexGen)
         loopIter = (loopIter + 1) % 30
-        basex = central_delta + -((-basex + 100) % baseShift)
+        basex = move_base(basex, dt)
 
         # rotate the player
         if playerRot > -90:
@@ -396,8 +403,8 @@ def mainGame(movementInfo):
 
         # move pipes to left
         for uPipe, lPipe in zip(upperPipes, lowerPipes):
-            uPipe['x'] += pipeVelX
-            lPipe['x'] += pipeVelX
+            uPipe['x'] -= PIPE_VEL * dt
+            lPipe['x'] -= PIPE_VEL * dt
 
         # add new pipe when first pipe is about to touch left of screen
         if len(upperPipes) == 1:
@@ -417,7 +424,7 @@ def mainGame(movementInfo):
             SCREEN.blit(IMAGES['pipe'][0], (uPipe['x'], uPipe['y']))
             SCREEN.blit(IMAGES['pipe'][1], (lPipe['x'], lPipe['y']))
 
-        SCREEN.blit(IMAGES['base'], (basex, BASEY))
+        SCREEN.blit(IMAGES['base'], (central_delta - basex, BASEY))
         # print score so player overlaps the score
         showScore(score)
 
@@ -467,7 +474,7 @@ def showGameOverScreen(crashInfo):
             if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
                 pygame.quit()
                 sys.exit()
-            if event.type == KEYDOWN and (event.key == K_SPACE or event.key == K_UP) or event.type == MOUSEBUTTONDOWN:
+            if is_jump_pressed(event):
                 if playery + playerHeight >= BASEY - 1:
                     return
 
@@ -491,7 +498,7 @@ def showGameOverScreen(crashInfo):
             SCREEN.blit(IMAGES['pipe'][0], (uPipe['x'], uPipe['y']))
             SCREEN.blit(IMAGES['pipe'][1], (lPipe['x'], lPipe['y']))
 
-        SCREEN.blit(IMAGES['base'], (basex, BASEY))
+        SCREEN.blit(IMAGES['base'], (central_delta - basex, BASEY))
         showScore(score)
 
         playerSurface = pygame.transform.rotate(IMAGES['player'][1], playerRot)
