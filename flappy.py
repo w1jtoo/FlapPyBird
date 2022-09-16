@@ -12,7 +12,7 @@ import schedule
 
 from learedboard import save_score
 
-FPS = 60
+FPS = 30
 SCREENWIDTH  = 288 * 2
 SCREENHEIGHT = 1080
 PIPEGAPSIZE  = 230 # gap between upper and lower part of pipe
@@ -20,7 +20,8 @@ FULLSCREEN_WIDTH = 1000
 BASEY        = SCREENHEIGHT * 0.79
 # image, sound and hitmask  dicts
 IMAGES, SOUNDS, HITMASKS = {}, {}, {}
-PIPE_VEL = 128 * 2
+PIPE_VEL = 128
+SCORE = 0
 
 JUMP_KEYS = []
 
@@ -84,19 +85,30 @@ def generate_QR(url: str):
 
 QR = None
 
+def get_game_area() -> (int, int, int, int):
+    back_rect = IMAGES['background'].get_rect(topleft=(get_inner_x(), 0))
+    return (back_rect[0], back_rect[1], back_rect[2], SCREENHEIGHT)
+
 def draw_qr() -> None:
     SCREEN.blit(QR,(FULLSCREEN_WIDTH / 2 - QR.get_width() / 2 , SCREENHEIGHT / 2 + int(SCREENHEIGHT * 0.1)))
 
-def _generate_new_qr(url) -> None:
-    global QR
+LOCK = False
 
+def _generate_new_qr(url) -> None:
+    global QR, LOCK
+
+    if LOCK:
+        return
+
+    LOCK = True
     img = generate_QR(url)
     buffered = BytesIO()
     img.save(buffered, format="PNG")
 
     pilimage = Image.open(buffered).convert("RGBA")
-    qr = pygame.image.fromstring(pilimage.tobytes(), pilimage.size, pilimage.mode)
+    qr = pygame.image.fromstring(pilimage.tobytes(), pilimage.size, pilimage.mode).convert()
     QR = scale(qr, scale_factor = 0.75)
+    LOCK = False
 
 def generate_new_qr() -> None:
     from threading import Thread
@@ -107,7 +119,8 @@ def init_game() -> None:
     global SCREEN, FPSCLOCK
     pygame.init()
     FPSCLOCK = pygame.time.Clock()
-    SCREEN = pygame.display.set_mode((FULLSCREEN_WIDTH, SCREENHEIGHT), pygame.RESIZABLE)
+    SCREEN = pygame.display.set_mode((FULLSCREEN_WIDTH, SCREENHEIGHT), RESIZABLE | DOUBLEBUF, 16)
+    pygame.event.set_allowed([QUIT, KEYDOWN])
     pygame.display.set_caption('Portal Bird')
 
 def scale(image: "Surface", scale_factor = 2) -> "Surface":
@@ -128,7 +141,6 @@ def preload_data() -> None:
         pygame.image.load('assets/sprites/8.png').convert_alpha(),
         pygame.image.load('assets/sprites/9.png').convert_alpha()
     )
-
     # game over sprite
     IMAGES['gameover'] = pygame.image.load('assets/sprites/gameover.png').convert_alpha()
     # message sprite for welcome screen
@@ -149,7 +161,6 @@ def preload_data() -> None:
     SOUNDS['swoosh'] = pygame.mixer.Sound('assets/audio/swoosh' + soundExt)
     SOUNDS['wing']   = pygame.mixer.Sound('assets/audio/wing' + soundExt)
 
-
 def scale_init(number: int) -> None:
     IMAGES["numbers"] = tuple(scale(image) for image in IMAGES["numbers"])
 
@@ -164,10 +175,15 @@ def scale_player_background_pipe() -> None:
 
     IMAGES['background'] = scale(IMAGES['background'])
 
+def logout_and_save_score() -> None:
+    if is_authorized():
+        name, img = get_auth_meta()
+        save_score(name, img, SCORE)
+    logout()
+
 def main():
     init_game()
     preload_data()
-    # auth()
 
     scale_init(1)
 
@@ -207,20 +223,38 @@ def main():
             getHitmask(IMAGES['player'][2]),
         )
 
-        movementInfo = showWelcomeAnimation()
-        crashInfo = mainGame(movementInfo)
-        showGameOverScreen(crashInfo)
+        init_background()
+        pygame.display.update()
+
+        for lives_count in range(3):
+            movementInfo = showWelcomeAnimation()
+
+            if not is_authorized():
+                break
+
+            crashInfo = mainGame(movementInfo)
+
+            if not is_authorized():
+                break
+
+            showGameOverScreen(crashInfo)
+            if not is_authorized():
+                break
+
+        logout_and_save_score()
 
 
-def draw_background() -> None:
+def init_background() -> ("Surface", "Surface"):
     start_x = 0
     start_y = 0
 
     end_x = get_inner_x()
     end_y = SCREENHEIGHT
 
-    pygame.draw.rect(SCREEN, [242, 242, 242], [start_x, start_y, end_x, end_y], 0)
-    pygame.draw.rect(SCREEN, [242, 242, 242], [end_x + IMAGES['background'].get_width(), 0, end_x, end_y], 0)
+    left = pygame.draw.rect(SCREEN, [242, 242, 242], [start_x, start_y, end_x, end_y], 0)
+    right = pygame.draw.rect(SCREEN, [242, 242, 242], [end_x + IMAGES['background'].get_width(), 0, end_x, end_y], 0)
+
+    return (left, right)
 
 def is_jump_pressed(event) -> bool:
     return event.type == KEYDOWN and (event.key == K_SPACE or event.key == K_UP or event.key == 1073741902) or event.type == MOUSEBUTTONDOWN
@@ -250,11 +284,11 @@ def showWelcomeAnimation():
     # player shm for up-down motion on welcome screen
     playerShmVals = {'val': 0, 'dir': 1}
 
-    schedule.every(160).seconds.do(lambda: generate_new_qr())
-    schedule.every(3).seconds.do(check_auth)
+    schedule.every(250).seconds.do(lambda: generate_new_qr())
+    schedule.every(2).seconds.do(check_auth)
     generate_new_qr()
 
-    while True:
+    while 1:
         dt = FPSCLOCK.tick(FPS) / 1000
         for event in pygame.event.get():
 
@@ -300,11 +334,8 @@ def showWelcomeAnimation():
             if QR is not None:
                 draw_qr()
 
-        draw_background()
-        pygame.display.update()
-        FPSCLOCK.tick(FPS)
+        pygame.display.update(get_game_area())
 
-# @profile
 def mainGame(movementInfo):
     central_delta = get_inner_x()
 
@@ -343,7 +374,7 @@ def mainGame(movementInfo):
 
     collided_pipes = set()
 
-    while True:
+    while 1:
         dt = FPSCLOCK.tick(FPS) / 1000
         for event in pygame.event.get():
             if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
@@ -376,6 +407,8 @@ def mainGame(movementInfo):
             pipeMidPos = pipe['x'] + IMAGES['pipe'][0].get_width() / 2
             if playerMidPos >= pipeMidPos and pipe["pipe_id"] not in collided_pipes:
                 score += 1
+                global SCORE
+                SCORE = score
                 SOUNDS['point'].play()
                 collided_pipes.add(pipe["pipe_id"])
 
@@ -436,10 +469,8 @@ def mainGame(movementInfo):
         playerSurface = pygame.transform.rotate(IMAGES['player'][playerIndex], visibleRot)
         SCREEN.blit(playerSurface, (playerx, playery))
 
-        draw_background()
 
-        pygame.display.update()
-        FPSCLOCK.tick(FPS)
+        pygame.display.update(get_game_area())
 
 
 def showGameOverScreen(crashInfo):
@@ -447,11 +478,6 @@ def showGameOverScreen(crashInfo):
     central_delta = get_inner_x()
 
     score = crashInfo['score']
-
-    name, img = get_auth_meta()
-    save_score(name, img, score)
-    logout()
-
     playerx = central_delta + SCREENWIDTH * 0.2
     playery = crashInfo['y']
     playerHeight = IMAGES['player'][0].get_height()
@@ -469,22 +495,22 @@ def showGameOverScreen(crashInfo):
     if not crashInfo['groundCrash']:
         SOUNDS['die'].play()
 
-    while True:
+    while 1:
+        dt = FPSCLOCK.tick(FPS) / 1000
         for event in pygame.event.get():
             if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
                 pygame.quit()
                 sys.exit()
             if is_jump_pressed(event):
-                if playery + playerHeight >= BASEY - 1:
-                    return
+                return
 
         # player y shift
         if playery + playerHeight < BASEY - 1:
-            playery += min(playerVelY, BASEY - playery - playerHeight)
+            playery += playerVelY
 
         # player velocity change
         if playerVelY < 15:
-            playerVelY += playerAccY
+            playerVelY += playerAccY * dt
 
         # rotate only when it's a pipe crash
         if not crashInfo['groundCrash']:
@@ -505,10 +531,7 @@ def showGameOverScreen(crashInfo):
         SCREEN.blit(playerSurface, (playerx,playery))
         SCREEN.blit(IMAGES['gameover'], (central_delta + 100, 280))
 
-        draw_background()
-
-        FPSCLOCK.tick(FPS)
-        pygame.display.update()
+        pygame.display.update(get_game_area())
 
 
 def playerShm(playerShm):
@@ -623,5 +646,6 @@ def getHitmask(image):
     return mask
 
 if __name__ == '__main__':
+    # import cProfile
+    # cProfile.run('main()')
     main()
-    # save_score("123", "123", 15)

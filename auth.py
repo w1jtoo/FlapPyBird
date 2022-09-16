@@ -12,6 +12,7 @@ CLIENT_NAME = "portal_flappy_bird"
 
 DEVICE_CODE = None
 AUTH_META = None
+IS_AUTHORIZED = False
 
 def init_logging() -> None:
     logging.basicConfig(level=logging.DEBUG)
@@ -45,7 +46,7 @@ def check_auth() -> None:
     thread.start()
 
 def _check_auth() -> None:
-    global AUTH_META
+    global AUTH_META, IS_AUTHORIZED
 
     if DEVICE_CODE is None:
         raise Exception("DEVICE_CODE is None")
@@ -69,6 +70,7 @@ def _check_auth() -> None:
         decoded = jwt.decode(encoded, options={"verify_signature": False})
 
         AUTH_META = decoded
+        IS_AUTHORIZED = True
         return
 
     if req.status_code == 400:
@@ -78,11 +80,11 @@ def _check_auth() -> None:
 
 
 def is_authorized() -> None:
-    return AUTH_META is not None
+    return IS_AUTHORIZED
 
 def logout() -> None:
-    global AUTH_META
-    AUTH_META = None
+    global AUTH_META, IS_AUTHORIZED
+    IS_AUTHORIZED = False
 
 def get_auth_meta() -> dict:
     return (AUTH_META["name"], AUTH_META["picture"])

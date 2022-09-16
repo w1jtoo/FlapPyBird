@@ -14,6 +14,7 @@ schedule = "*"
 pyjwt = "*"
 memory_profiler = "*"
 pyinstaller = "*"
+cProfile = "*"
 
 [requires]
 python_version = "3"

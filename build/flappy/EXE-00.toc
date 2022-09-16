@@ -48,7 +48,7 @@
  [],
  False,
  False,
- 1663156042,
+ 1663304067,
  [('run.exe',
    'C:\\Users\\kharlov.v\\.virtualenvs\\FlapPyBird-sonO3mxi\\lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit\\run.exe',
    'EXECUTABLE')])
